@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/pos_provider.dart';
-import 'screens/pos_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -22,7 +22,8 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: const PosScreen(),
+        // WHY: Start on SplashScreen; it automatically navigates to PosScreen after 1.5 seconds.
+        home: const SplashScreen(),
       ),
     );
   }
