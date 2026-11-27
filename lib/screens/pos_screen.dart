@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/pos_provider.dart';
 import '../widgets/cart_sheet.dart';
+import 'order_history_screen.dart';
 
 class PosScreen extends StatefulWidget {
   const PosScreen({super.key});
@@ -41,6 +42,19 @@ class _PosScreenState extends State<PosScreen> {
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         actions: [
+          // WHY: Navigates to the OrderHistoryScreen so cashiers can review past transactions.
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'Order History',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const OrderHistoryScreen(),
+                ),
+              );
+            },
+          ),
           // WHY: Badge shows total cart item count over the shopping cart icon so the user always sees their cart status.
           Padding(
             padding: const EdgeInsets.only(right: 12.0),

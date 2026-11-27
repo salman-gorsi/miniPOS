@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pos_small/models/product.dart';
 import 'package:pos_small/providers/pos_provider.dart';
 import 'package:pos_small/widgets/cart_sheet.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   testWidgets('PosProvider adds to cart and respects stock limits', (WidgetTester tester) async {
     final provider = PosProvider();
     const testProduct = Product(id: 'p1', name: 'Test Product', price: 1000.0, stock: 2);
@@ -28,7 +35,7 @@ void main() {
     expect(provider.getProductCartQuantity('p1'), 2);
   });
 
-  testWidgets('CartSheet displays items, calculations, discount, and checkout button', (WidgetTester tester) async {
+  testWidgets('CartSheet displays items, calculations, discount, and completes checkout', (WidgetTester tester) async {
     final provider = PosProvider();
     const expensiveProduct = Product(id: 'p_exp', name: 'Expensive Item', price: 6000.0, stock: 5);
 
@@ -37,15 +44,26 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<PosProvider>.value(
         value: provider,
-        child: const MaterialApp(
+        child: MaterialApp(
           home: Scaffold(
-            body: CartSheet(),
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    builder: (_) => const CartSheet(),
+                  );
+                },
+                child: const Text('Open Cart'),
+              ),
+            ),
           ),
         ),
       ),
     );
 
-    await tester.pump();
+    await tester.tap(find.text('Open Cart'));
+    await tester.pumpAndSettle();
 
     // Verify item name and unit price
     expect(find.text('Shopping Cart (1 item • 1 unit)'), findsOneWidget);
@@ -60,10 +78,12 @@ void main() {
     expect(find.text('ACTIVE'), findsOneWidget);
     expect(find.text('Rs. 5400'), findsOneWidget);
 
-    // Tap checkout and verify SnackBar
+    // Tap checkout and verify SnackBar & completion
     await tester.tap(find.text('Checkout • Rs. 5400'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('Order completed!'), findsOneWidget);
+    expect(provider.cartItems.isEmpty, true);
+    expect(provider.orders.length, 1);
   });
 }

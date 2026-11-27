@@ -314,7 +314,7 @@ class CartSheet extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      // WHY: Primary checkout button; wired to placeholder SnackBar until order saving logic is added in next commit.
+                      // WHY: Primary checkout button triggers order finalization and persists sale.
                       SizedBox(
                         width: double.infinity,
                         height: 48,
@@ -326,13 +326,24 @@ class CartSheet extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Checkout will be completed in the next update!'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
+                          onPressed: () async {
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            final navigator = Navigator.of(context);
+
+                            // WHY: Call checkout() which updates stock, saves order to storage, and clears cart.
+                            final success = await posProvider.checkout();
+                            if (success) {
+                              // WHY: Close the modal bottom sheet first so the user returns to the catalog.
+                              navigator.pop();
+
+                              // WHY: Confirm to the cashier that the sale was successfully finalized and recorded.
+                              scaffoldMessenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Order completed!'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
                           },
                           child: Text(
                             'Checkout • Rs. ${posProvider.finalTotal.toStringAsFixed(0)}',

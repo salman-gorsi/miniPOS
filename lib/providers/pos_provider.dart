@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/product.dart';
 import '../models/cart_item.dart';
+import '../models/order.dart';
 import '../services/storage_service.dart';
 
 class PosProvider extends ChangeNotifier {
@@ -13,12 +14,18 @@ class PosProvider extends ChangeNotifier {
   // WHY: Private list maintaining current cart state in memory.
   final List<CartItem> _cartItems = [];
 
+  // WHY: Private list of completed orders loaded from persistent storage and updated after each checkout.
+  List<Order> _orders = [];
+
   List<Product> get products => _products;
   bool get isLoading => _isLoading;
   String get searchQuery => _searchQuery;
 
   // WHY: List.unmodifiable prevents outside callers from mutating _cartItems without calling notifyListeners().
   List<CartItem> get cartItems => List.unmodifiable(_cartItems);
+
+  // WHY: Exposes completed orders as an unmodifiable list to maintain clean, one-way data flow.
+  List<Order> get orders => List.unmodifiable(_orders);
 
   // WHY: Sums the quantities of all items in the cart to provide a total item count (e.g., for badge counters).
   int get totalCartItemCount {
@@ -60,16 +67,19 @@ class PosProvider extends ChangeNotifier {
     }).toList();
   }
 
-  // WHY: Asynchronously loads products from StorageService (which falls back to assets/products.json on first launch) and updates loading state.
+  // WHY: Asynchronously loads catalog products and recorded orders from StorageService at startup.
   Future<void> loadProducts() async {
     _isLoading = true;
     notifyListeners();
 
     try {
       _products = await _storageService.loadProducts();
+      // WHY: Load saved order history from storage on initial app load.
+      _orders = await _storageService.loadOrders();
     } catch (e) {
-      // WHY: In case of error loading products, we ensure products list is empty and notify listeners.
+      // WHY: In case of error loading data, we ensure lists are safe defaults and notify listeners.
       _products = [];
+      _orders = [];
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -163,5 +173,51 @@ class PosProvider extends ChangeNotifier {
   void clearCart() {
     _cartItems.clear();
     notifyListeners();
+  }
+
+  // WHY: Completes checkout: validates cart, reduces catalog stock, creates Order, saves both to storage, and clears cart.
+  Future<bool> checkout() async {
+    // WHY: Prevent checking out with an empty cart.
+    if (_cartItems.isEmpty) {
+      return false;
+    }
+
+    // WHY: Deduct purchased item quantities from product inventory.
+    final updatedProducts = <Product>[];
+    for (final product in _products) {
+      final cartQuantity = getProductCartQuantity(product.id);
+      if (cartQuantity > 0) {
+        final newStock = (product.stock - cartQuantity).clamp(0, product.stock);
+        updatedProducts.add(product.copyWith(stock: newStock));
+      } else {
+        updatedProducts.add(product);
+      }
+    }
+    _products = updatedProducts;
+
+    // WHY: Create an immutable order snapshot with a unique ID and current pricing calculations.
+    final order = Order(
+      id: 'ORD_${DateTime.now().millisecondsSinceEpoch}',
+      dateTime: DateTime.now(),
+      items: List<CartItem>.from(_cartItems),
+      subtotal: subtotal,
+      discount: discount,
+      total: finalTotal,
+    );
+
+    // WHY: Prepend the newly created order so that the newest orders appear at the top of the history list.
+    _orders.insert(0, order);
+
+    // WHY: Persist updated product inventory and orders list to SharedPreferences.
+    await _storageService.saveProducts(_products);
+    await _storageService.saveOrders(_orders);
+
+    // WHY: Reset the cart items now that the order has been completed and saved.
+    _cartItems.clear();
+
+    // WHY: Notify all listener widgets to reflect updated product stocks and empty cart.
+    notifyListeners();
+
+    return true;
   }
 }
