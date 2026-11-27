@@ -82,6 +82,16 @@ class PosProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // WHY: Returns how many units of a given product are currently in the cart, making UI stock checks simple and fast.
+  int getProductCartQuantity(String productId) {
+    for (final item in _cartItems) {
+      if (item.product.id == productId) {
+        return item.quantity;
+      }
+    }
+    return 0;
+  }
+
   // WHY: Adds a product to the cart or increments its quantity if already present, respecting stock limits.
   void addToCart(Product product) {
     // WHY: If product stock is 0, do nothing.
